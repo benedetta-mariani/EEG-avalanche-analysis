@@ -337,8 +337,9 @@ def delta(alpha, salpha, tau, stau):
 def scaling(sizes, durations,  lim1 = 4 , lim2 = 4,ax = None, tau = "default", errtau = "default", alpha = "default", erralpha = "default", maxxminsizes = 100, maxxmindur = 0.05, xmaxsizes = "default", xmaxdur = "default", xminfit = 'default',xmaxfit = 'default', plotto = False):
     
     if ax == None:
-        fig = plt.figure(figsize = (6,4))
-        ax = fig.add_subplot(1,1,1)
+        if plotto:
+            fig = plt.figure(figsize = (6,4))
+            ax = fig.add_subplot(1,1,1)
         
     if maxxminsizes ==  "default":
         maxxminsizes = max(sizes)
