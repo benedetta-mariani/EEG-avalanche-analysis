@@ -1,3 +1,8 @@
+""" 
+more complete set of functions wrt avalanches.py to study avalanches statistics 
+(e. g. comprehend study of avalanches profiles and calculation of inter avlanches times)
+"""
+
 import numpy as np
 import matplotlib.pyplot as plt
 import powerlaw as pwl
@@ -7,7 +12,167 @@ from scipy.signal import find_peaks
 from scipy import signal
 from scipy.stats import percentileofscore
 
-def thresholdnuova(sample1,means,stds,thres):
+def compute_avalanches(fl2,fs,theta = 2,intervallo ='default',discretized = True,dt =1):
+    
+    """
+    data: discretized array with shape: time x channels
+    """
+    
+    
+    fl1 =( np.array(fl2)-np.mean(np.array(fl2),0))/(np.std(np.array(fl2),0))
+
+    print(min(fl1[:,0]))
+    
+    
+  
+    final_t =np.array([np.array(np.abs(fl1[:,i]) > theta, dtype=float) for i in range(len(fl1[0]))])
+ 
+    ev = np.sum(final_t,0)
+    print(avinterv(ev))
+    if intervallo == "default":
+        interv = avinterv(ev)
+    else:
+        interv = intervallo
+    
+    
+    if not discretized:
+        if intervallo == "default":
+            interv = 1
+        else:
+            interv = intervallo
+        global_signal = np.sum(np.abs(fl1),1)
+        #print( global_signal.shape)
+        
+        if len(global_signal)%interv > 0:
+            add = (int(len(global_signal)/interv) + 1)* interv - len(ev)
+            global_signal = global_signal.tolist()
+            for i in range(add):
+                global_signal = global_signal + [0]
+
+        global_signal= np.asarray(global_signal).reshape(int(len(global_signal)/interv), interv)
+        
+        global_signal2 =np.sum(global_signal,axis = 1)
+        
+        
+        
+    if len(ev)%interv > 0:
+        add = (int(len(ev)/interv) + 1)* interv - len(ev)
+        ev = ev.tolist()
+        for i in range(add):
+            ev = ev + [0]
+
+    ev = np.asarray(ev).reshape(int(len(ev)/interv), interv)
+    
+    gg =np.sum(ev,axis = 1)
+    new= np.array(gg, dtype = bool)
+    final_t = np.array(new, dtype = float)
+    
+    av_indice_start = np.where((final_t[1:] - final_t[:-1])>0)[0]  + 1# These are the indices where an avalanche begins
+    av_indice_end = np.where((final_t[1:] - final_t[:-1])< 0)[0] + 1  # hese are the indices where an avalanche ends
+    
+    #We modify the content of both av_indice_start and av_indice_end depending on the 
+    #initial and final values of final_t
+    
+    #Here both av_indice_start and av_indice_end register correctly all avalanche begginings and ends
+    if final_t[0]==0 and final_t[-1]==0: 
+        av_indice_start = av_indice_start
+        av_indice_end = av_indice_end  # No changes on both arrays since they are correct at possitions and lenghts 
+    
+    #Here av_indice_end does not register the position of the end of the last avalanche  
+    elif final_t[0]==0 and final_t[-1]==1:
+        av_indice_end = np.append(av_indice_end,len(final_t)-1) 
+    
+    #Here av_indice_start does not register the position of the begining of the first avalanche
+    elif final_t[0]==1 and final_t[-1]==0:
+        av_indice_start = np.insert(av_indice_start,0,0)
+    
+    #Here av_indice_start does not register the position of the begining of the first avalanche
+    # and av_indice_end does not register the position of the end of the last avalanche
+    
+    elif final_t[0]==1 and final_t[-1]==1:
+        av_indice_start = np.insert(av_indice_start,0,0)
+        av_indice_end = np.append(av_indice_end,len(final_t)-1)
+               
+        
+   
+    t=np.arange(0,len(final_t)*interv/fs,1/fs)
+    avalanche_sizes = []
+    avalanche_dur = []
+
+    for s in range(len(av_indice_start)):
+        if len(av_indice_start) != len(av_indice_end):
+            print('Error, they must be of the same length')
+            break
+        if discretized:
+            avalanche_sizes.append(np.sum(gg[av_indice_start[s]:av_indice_end[s]]))
+            avalanche_dur.append((t[av_indice_end[s]]- t[av_indice_start[s]])/dt)##
+        else:
+            avalanche_sizes.append(np.sum(global_signal2[av_indice_start[s]:av_indice_end[s]]))
+            avalanche_dur.append((t[av_indice_end[s]]- t[av_indice_start[s]])/dt)##
+    
+    return np.array(avalanche_sizes),np.array(avalanche_dur)
+
+def intertimes(data,interv,fs,dt =1):
+    """
+    data: discretized array with shape: time x # of channels
+    """
+    final_tt = data.T
+    ev = np.array(np.sum(final_tt,0), dtype=bool)
+    if len(ev)%interv > 0:
+
+        add = (int(len(ev)/interv) + 1)* interv - len(ev)
+        ev = ev.tolist()
+        for i in range(add):
+            ev = ev + [0]
+
+    ev = np.asarray(ev).reshape(int(len(ev)/interv), interv)
+    new = np.array(np.sum(ev,axis = 1),dtype = bool)
+    ##ev.shape, new.shape, mean_interspike_time
+    final_t = np.array(new, dtype = float)
+    
+    #The key part
+    av_indice_start = np.where((final_t[1:] - final_t[:-1]) <0)[0]  + 1# These are the indices where an avalanche begins
+    av_indice_end = np.where((final_t[1:] - final_t[:-1])> 0)[0] + 1  # hese are the indices where an avalanche ends
+    
+    #We modify the content of both av_indice_start and av_indice_end depending on the 
+    #initial and final values of final_t
+    
+    #Here both av_indice_start and av_indice_end register correctly all avalanche begginings and ends
+    if final_t[0]==1 and final_t[-1]==1: 
+        av_indice_start = av_indice_start
+        av_indice_end = av_indice_end  # No changes on both arrays since they are correct at possitions and lenghts 
+    
+    #Here av_indice_end does not register the position of the end of the last avalanche  
+    elif final_t[0]==1 and final_t[-1]==0:
+        av_indice_end = np.append(av_indice_end,len(final_t)-1) 
+    
+    #Here av_indice_start does not register the position of the begining of the first avalanche
+    elif final_t[0]==0 and final_t[-1]==1:
+        av_indice_start = np.insert(av_indice_start,0,0)
+    
+    #Here av_indice_start does not register the position of the begining of the first avalanche
+    # and av_indice_end does not register the position of the end of the last avalanche
+    
+    elif final_t[0]==0 and final_t[-1]==0:
+        av_indice_start = np.insert(av_indice_start,0,0)
+        av_indice_end = np.append(av_indice_end,len(final_t)-1)
+               
+        
+   
+    t=np.arange(0,len(final_t)*interv/fs,fs)
+
+  
+    avalanche_dur = []
+
+    for s in range(len(av_indice_start)):
+        if len(av_indice_start) != len(av_indice_end):
+            print('Error, they must be of the same length')
+            break
+        avalanche_dur.append((t[av_indice_end[s]]- t[av_indice_start[s]])/dt)
+        
+    return np.array(avalanche_dur)
+
+def threshold_data(sample1,means,stds,thres):
     """ 
     Detects as events the points of maximum excursion over a threshold, considering either positive and negative excursions or only negative. if "option1" is selected, the one largest maximum between two crossings of the mean assigns the final event time.
     For a faster thresholding use the function below findpeaks.
@@ -47,8 +212,8 @@ def thresholdnuova(sample1,means,stds,thres):
             stan = stds[s]
             tempi = np.arange(0,len(sig),1)
             prova =np.array((sig - means[s]) <= -thres*stan, dtype = float)
-            init = np.where(np.diff(prova)>0)[0]
-            end = np.where(np.diff(prova)<0)[0] 
+            init = np.where(np.diff(prova)>0)[0] + 1
+            end = np.where(np.diff(prova)<0)[0] + 1
             if len(init) < len(end):
                 init = np.insert(init,0,0)
 
@@ -69,7 +234,7 @@ def thresholdnuova(sample1,means,stds,thres):
             
     return sample2.reshape(initshape)
 
-def thresholdnuova2(sample1,means,stds,thres):
+def threshold_data_2(sample1,means,stds,thres):
     """ 
     Detects as events the points of maximum excursion over a threshold, considering either positive and negative excursions or only negative. if "option1" is selected, the one largest maximum between two crossings of the mean assigns the final event time.
     For a faster thresholding use the function below findpeaks.
@@ -116,11 +281,11 @@ def thresholdnuova2(sample1,means,stds,thres):
             #changesign1 = np.hstack((changesign1,0.))
             
 
-            initsign = np.where((changesign)<0)[0]
-            endsign = np.where((changesign)>0)[0]
+            initsign = np.where((changesign)<0)[0] + 1
+            endsign = np.where((changesign)>0)[0] + 1
 
-            init = np.where(np.diff(prova)>0)[0]
-            end = np.where(np.diff(prova)<0)[0]
+            init = np.where(np.diff(prova)>0)[0] + 1
+            end = np.where(np.diff(prova)<0)[0] + 1
             #print(len(initsign) ==len(endsign))
             #print(len(sig),len(initsign),len(init), len(end))
             if len(init) < len(end):
@@ -498,6 +663,9 @@ def RasterPlot(sample, av, ticks,ax, color, alpha):
 
 
 def avalanche_finder(S_shape_, coef):
+    """
+    returns avalanche sizes, durations + avalanches shapes
+    """
     where_spikes = np.where(S_shape_ != 0)
     interspike_time = (where_spikes - np.roll(where_spikes,1))
     interspike_time = np.delete(interspike_time,0) # remove the first element
