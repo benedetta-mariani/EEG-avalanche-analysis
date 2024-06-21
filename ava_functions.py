@@ -21,14 +21,14 @@ def compute_avalanches(fl2,fs,theta = 2,intervallo ='default',discretized = True
     
     fl1 =( np.array(fl2)-np.mean(np.array(fl2),0))/(np.std(np.array(fl2),0))
 
-    print(min(fl1[:,0]))
+    #print(min(fl1[:,0]))
     
     
   
     final_t =np.array([np.array(np.abs(fl1[:,i]) > theta, dtype=float) for i in range(len(fl1[0]))])
  
     ev = np.sum(final_t,0)
-    print(avinterv(ev))
+    #print(avinterv(ev))
     if intervallo == "default":
         interv = avinterv(ev)
     else:
