@@ -29,11 +29,12 @@ def compute_avalanches(fl2,fs,theta = 2,intervallo ='default',discretized = True
  
     ev = np.sum(final_t,0)
     #print(avinterv(ev))
-    if intervallo == "default":
-        interv = avinterv(ev)
-    else:
-        interv = intervallo
-    
+    if discretized:
+        if intervallo == "default":
+            interv = avinterv(ev)
+        else:
+            interv = intervallo
+
     
     if not discretized:
         if intervallo == "default":
@@ -112,23 +113,28 @@ def compute_avalanches(fl2,fs,theta = 2,intervallo ='default',discretized = True
     
     return np.array(avalanche_sizes),np.array(avalanche_dur)
 
-def intertimes(data,interv,fs,dt =1):
+def intertimes(data,interv,spike_data,fs,dt =1):
     """
     data: discretized array with shape: time x # of channels
     """
-    final_tt = data.T
-    ev = np.array(np.sum(final_tt,0), dtype=bool)
-    if len(ev)%interv > 0:
+    if not spike_data: 
+            
+        fl1 =( np.array(data)-np.mean(np.array(data),0))/(np.std(np.array(data),0))
+        final_t =np.array([np.array(np.abs(fl1[:,i]) > theta, dtype=float) for i in range(len(fl1[0]))])
+    else:
+        final_tt = data.T
+        ev = np.array(np.sum(final_tt,0), dtype=bool)
+        if len(ev)%interv > 0:
 
-        add = (int(len(ev)/interv) + 1)* interv - len(ev)
-        ev = ev.tolist()
-        for i in range(add):
-            ev = ev + [0]
+            add = (int(len(ev)/interv) + 1)* interv - len(ev)
+            ev = ev.tolist()
+            for i in range(add):
+                ev = ev + [0]
 
-    ev = np.asarray(ev).reshape(int(len(ev)/interv), interv)
-    new = np.array(np.sum(ev,axis = 1),dtype = bool)
-    ##ev.shape, new.shape, mean_interspike_time
-    final_t = np.array(new, dtype = float)
+        ev = np.asarray(ev).reshape(int(len(ev)/interv), interv)
+        new = np.array(np.sum(ev,axis = 1),dtype = bool)
+        ##ev.shape, new.shape, mean_interspike_time
+        final_t = np.array(new, dtype = float)
     
     #The key part
     av_indice_start = np.where((final_t[1:] - final_t[:-1]) <0)[0]  + 1# These are the indices where an avalanche begins
